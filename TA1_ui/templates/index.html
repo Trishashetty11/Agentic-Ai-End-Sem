@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Essay Assistant</title>
+<style>
+  :root{--bg:#f6f5f1;--card:#fff;--ink:#1f2328;--mute:#667085;--line:#e4e2da;--accent:#3b5bdb;--ok:#2b8a3e;--bad:#c92a2a;--warn:#e67700}
+  @media (prefers-color-scheme:dark){:root{--bg:#16181c;--card:#20242a;--ink:#e8eaed;--mute:#9aa3af;--line:#343a43;--accent:#7c93f5;--ok:#51cf66;--bad:#ff6b6b;--warn:#fcc419}}
+  *{box-sizing:border-box}
+  body{margin:0;font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif;background:var(--bg);color:var(--ink)}
+  main{max-width:860px;margin:0 auto;padding:28px 18px 60px}
+  h1{font-size:1.5rem;margin:0 0 4px}
+  .sub{color:var(--mute);margin:0 0 18px;font-size:.92rem}
+  .badge{display:inline-block;padding:2px 10px;border-radius:99px;font-size:.78rem;border:1px solid var(--line);color:var(--mute)}
+  .tabs{display:flex;gap:6px;margin:16px 0}
+  .tab{padding:8px 16px;border:1px solid var(--line);background:var(--card);border-radius:8px;cursor:pointer;color:var(--ink);font:inherit}
+  .tab.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:12px 0}
+  label{display:block;font-size:.85rem;color:var(--mute);margin:0 0 4px}
+  input,select{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit}
+  .row{display:flex;gap:12px;flex-wrap:wrap}.row>div{flex:1;min-width:180px}
+  button.go{margin-top:14px;padding:10px 22px;border:0;border-radius:8px;background:var(--accent);color:#fff;font:inherit;cursor:pointer}
+  button.go:disabled{opacity:.55;cursor:wait}
+  button.sec{padding:7px 14px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font:inherit;cursor:pointer}
+  .step h3{margin:0 0 6px;font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;color:var(--mute)}
+  .step p,.step pre{margin:0;white-space:pre-wrap;font-family:inherit}
+  .pill{font-size:.8rem;padding:2px 9px;border-radius:99px;margin-left:8px;color:#fff}
+  .ok{background:var(--ok)}.bad{background:var(--bad)}.warn{background:var(--warn)}
+  .final{border-left:4px solid var(--accent)}
+  table{width:100%;border-collapse:collapse;font-size:.85rem}
+  th,td{text-align:left;padding:5px 8px;border-bottom:1px solid var(--line)}
+  th{color:var(--mute);font-weight:500}
+  .err{color:var(--bad)}
+  .hide{display:none}
+  .flow{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:.85rem;color:var(--mute);margin-bottom:6px}
+  .flow b{padding:3px 10px;border:1px solid var(--line);border-radius:6px;color:var(--ink);background:var(--card)}
+</style>
+</head>
+<body>
+<main>
+  <h1>Essay Assistant</h1>
+  <p class="sub">Draft → critique → revise, powered by LangGraph. <span class="badge" id="mode">checking model…</span></p>
+
+  <div class="tabs">
+    <button class="tab on" data-t="ta1">TA1 · Draft/Critique/Revise</button>
+    <button class="tab" data-t="ta2">TA2 · Memory + RAG agents</button>
+  </div>
+
+  <!-- TA1 -->
+  <section id="ta1">
+    <div class="card">
+      <div class="row">
+        <div style="flex:3"><label>Topic</label><input id="topic1" value="the impact of remote work on productivity"></div>
+        <div><label>Draft style</label>
+          <select id="style"><option value="quick">Quick / rough (expect revision)</option><option value="polished">Polished (may skip revision)</option></select></div>
+      </div>
+      <button class="go" id="run1">Run workflow</button>
+    </div>
+    <div id="out1"></div>
+  </section>
+
+  <!-- TA2 -->
+  <section id="ta2" class="hide">
+    <div class="card">
+      <div class="row">
+        <div style="flex:3"><label>Topic</label><input id="topic2" value="why sleep matters for students"></div>
+        <div><label>User (memory profile)</label><input id="user" value="guest"></div>
+      </div>
+      <div class="row" style="margin-top:12px;align-items:end">
+        <div><label>Save preference — key</label><input id="pk" placeholder="max_words"></div>
+        <div><label>value</label><input id="pv" placeholder="60"></div>
+        <div style="flex:0"><button class="sec" id="savepref">Save</button></div>
+      </div>
+      <button class="go" id="run2">Run multi-agent loop</button>
+    </div>
+    <div id="out2"></div>
+  </section>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+const post = (u, b) => fetch(u, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(b)}).then(async r => ({ok:r.ok, d:await r.json()}));
+
+fetch("/api/status").then(r=>r.json()).then(s => { $("#mode").textContent = s.mode; });
+
+document.querySelectorAll(".tab").forEach(t => t.onclick = () => {
+  document.querySelectorAll(".tab").forEach(x => x.classList.toggle("on", x === t));
+  ["ta1","ta2"].forEach(id => $("#"+id).classList.toggle("hide", id !== t.dataset.t));
+});
+
+$("#run1").onclick = async () => {
+  const b = $("#run1"); b.disabled = true; b.textContent = "Running…"; $("#out1").innerHTML = "";
+  const {ok, d} = await post("/api/ta1", {topic:$("#topic1").value, style:$("#style").value});
+  b.disabled = false; b.textContent = "Run workflow";
+  if (!ok) { $("#out1").innerHTML = `<div class="card err">${esc(d.error)}</div>`; return; }
+  let h = `<div class="flow"><b>draft</b>→<b>critique</b>→<b>${d.revised ? "revise" : "<s>revise</s>"}</b>→<b>end</b></div>`;
+  if (d.mock) h += `<div class="card" style="font-size:.85rem;color:var(--mute)">Ollama isn't running, so this used the built-in mock model (canned text, real graph logic).</div>`;
+  for (const s of d.steps) {
+    if (s.node === "draft") h += `<div class="card step"><h3>1 · Draft</h3><p>${esc(s.draft)}</p></div>`;
+    if (s.node === "critique") h += `<div class="card step"><h3>2 · Critique <span class="pill ${s.issues_found?"bad":"ok"}">${s.issues_found?"issues found → revise":"no issues → skip revision"}</span></h3><pre>${esc(s.critique)}</pre></div>`;
+    if (s.node === "revise") h += `<div class="card step"><h3>3 · Revision</h3><p>${esc(s.revision)}</p></div>`;
+  }
+  h += `<div class="card final step"><h3>Final text</h3><p>${esc(d.final)}</p></div>`;
+  $("#out1").innerHTML = h;
+};
+
+$("#savepref").onclick = async () => {
+  if (!$("#pk").value.trim() || !$("#pv").value.trim()) { alert("Enter both a key and a value"); return; }
+  const {ok, d} = await post("/api/pref", {user:$("#user").value, k:$("#pk").value, v:$("#pv").value});
+  $("#savepref").textContent = ok ? "Saved ✓" : "Failed";
+  if (!ok) $("#out2").innerHTML = `<div class="card err">${esc(d.error)}</div>`;
+  setTimeout(() => $("#savepref").textContent = "Save", 1500);
+};
+
+$("#run2").onclick = async () => {
+  const b = $("#run2"); b.disabled = true; b.textContent = "Running (can take a minute)…"; $("#out2").innerHTML = "";
+  const {ok, d} = await post("/api/ta2", {topic:$("#topic2").value, user:$("#user").value});
+  b.disabled = false; b.textContent = "Run multi-agent loop";
+  if (!ok) { $("#out2").innerHTML = `<div class="card err">${esc(d.error)}</div>`; return; }
+  const prefs = Object.entries(d.prefs||{}).map(([k,v]) => `${esc(k)}=${esc(v)}`).join(", ") || "none";
+  let h = `<div class="card final step"><h3>Final paragraph <span class="pill ${d.issues? "warn":"ok"}">${d.issues? d.issues+" issue(s) left":"converged"}</span></h3><p>${esc(d.draft)}</p></div>`;
+  h += `<div class="card step"><h3>Numbers to verify</h3><p>${d.numbers.length ? esc(d.numbers.join(", ")) + " — check these against real sources; the model may invent them." : "none"}</p></div>`;
+  h += `<div class="card step"><h3>Memory used</h3><p>Preferences for "${esc($("#user").value)}": ${prefs}</p></div>`;
+  h += `<div class="card step"><h3>Last critique</h3><pre>${esc(d.critique)}</pre></div>`;
+  h += `<div class="card"><table><tr><th>node</th><th>rev</th><th>issues</th><th>words</th><th>sentences</th><th>tokens</th><th>sec</th></tr>` +
+       d.rounds.map(r => `<tr><td>${r.node}</td><td>${r.rev}</td><td>${r.issues ?? "–"}</td><td>${r.words}</td><td>${r.sents}</td><td>${r.tokens}</td><td>${r.sec}</td></tr>`).join("") + `</table></div>`;
+  $("#out2").innerHTML = h;
+};
+</script>
+</body>
+</html>

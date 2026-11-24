@@ -1,0 +1,6 @@
+test,TA1_revised,TA1_words,TA1_numbers,TA1_sec,TA2_revisions,TA2_converged,TA2_words,TA2_numbers,TA2_tokens,TA2_sec
+T1,True,104,3,11.4,1,True,95,3,1187,19.7
+T2,False,95,1,6.1,0,True,116,1,514,8.3
+T3,True,100,1,11.4,1,True,117,3,1178,14.7
+T4,True,165,7,15.5,1,True,47,2,940,9.4
+T5,True,145,4,15.5,1,True,106,1,1251,17.3

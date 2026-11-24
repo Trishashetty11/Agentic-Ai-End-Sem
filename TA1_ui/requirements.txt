@@ -1,0 +1,6 @@
+flask
+langgraph
+langchain-core
+langchain-ollama
+langchain-chroma
+langgraph-checkpoint-sqlite
